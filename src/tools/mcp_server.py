@@ -17,8 +17,10 @@ class MCPServer:
         """Fetches basic patient details."""
         try:
             url = f"{self.base_url}/Patient/{patient_id}"
+            print(f"[MCP] Fetching: {url}") # Debugging
             resp = requests.get(url)
             if resp.status_code != 200:
+                print(f"[MCP] Error {resp.status_code}: {resp.text}")
                 return f"Error: Patient {patient_id} not found."
             
             data = resp.json()
@@ -31,9 +33,11 @@ class MCPServer:
     def get_patient_labs(self, patient_id: str) -> str:
         """Fetches recent observations (labs/vitals) for the patient."""
         try:
-            url = f"{self.base_url}/Observation?subject=Patient/{patient_id}&_sort=-date&_count=5"
+            url = f"{self.base_url}/Observation?subject=Patient/{patient_id}"
+            print(f"[MCP] Fetching: {url}") # Debugging
             resp = requests.get(url)
             if resp.status_code != 200:
+                print(f"[MCP] Error {resp.status_code}: {resp.text}")
                 return "No lab results found."
             
             bundle = resp.json()
@@ -67,27 +71,113 @@ class MCPServer:
             return f"Error fetching labs: {e}"
 
     def get_patient_medications(self, patient_id: str) -> str:
-        """Fetches active medications."""
-        try:
-            # Check MedicationStatement and MedicationRequest
-            url = f"{self.base_url}/MedicationStatement?subject=Patient/{patient_id}&status=active"
-            resp = requests.get(url)
-            
-            meds = []
-            if resp.status_code == 200:
+        """
+        Fetches active medications from both MedicationStatement (reported) 
+        and MedicationRequest (prescribed).
+        """
+        meds = []
+        # 1. Search across two different FHIR resources to be thorough
+        resources = ["MedicationStatement", "MedicationRequest"]
+        
+        for res_type in resources:
+            try:
+                # We filter by 'active' status to avoid showing old prescriptions
+                url = f"{self.base_url}/{res_type}?subject=Patient/{patient_id}&status=active"
+                print(f"[MCP] Fetching: {url}") # Debugging
+                resp = requests.get(url)
+                
+                if resp.status_code != 200:
+                    print(f"[MCP] Error {resp.status_code}: {resp.text}")
+                    continue
+                
                 bundle = resp.json()
-                if "entry" in bundle:
-                    for entry in bundle["entry"]:
-                        res = entry["resource"]
-                        med_name = res.get("medicationCodeableConcept", {}).get("coding", [{}])[0].get("display", "Unknown Med")
-                        meds.append(f"- {med_name}")
+                if "entry" not in bundle:
+                    print(f"[MCP] No entries found in bundle")
+                    continue
+
+                for entry in bundle["entry"]:
+                    res = entry["resource"]
+                    name = "Unknown Medication"
+                    
+                    # Logic to handle both R4 and R5 naming conventions
+                    # R4: medicationCodeableConcept | R5: medication.concept
+                    med_concept = res.get("medicationCodeableConcept") or \
+                                res.get("medication", {}).get("concept")
+                    
+                    if med_concept:
+                        name = med_concept.get("coding", [{}])[0].get("display", "Unknown")
+                    elif "medicationReference" in res:
+                        name = res["medicationReference"].get("display", "Referenced Medication")
+                    
+                    meds.append(f"[{res_type}] {name}")
+                    
+            except Exception as e:
+                print(f"[MCP] Error fetching {res_type}: {e}")
+
+        if not meds:
+            return "No active medications found on file."
+        
+        return "Current Medications:\n" + "\n".join(list(set(meds))) # Set to remove duplicates
+
+    def get_patient_conditions(self, patient_id: str) -> str:
+        """Fetches active conditions/diagnoses."""
+        try:
+            url = f"{self.base_url}/Condition?subject=Patient/{patient_id}"
+            print(f"[MCP] Fetching: {url}")
+            resp = requests.get(url, timeout=5)
             
-            if not meds:
-                return "No active medications found on file."
+            if resp.status_code != 200:
+                print(f"[MCP] Error {resp.status_code}: {resp.text}")
+                return "No conditions found."
             
-            return "Current Medications:\n" + "\n".join(meds)
+            bundle = resp.json()
+            if "entry" not in bundle:
+                print(f"[MCP] No entries found in bundle")
+                return "No active conditions."
+                
+            conditions = []
+            for entry in bundle["entry"]:
+                res = entry["resource"]
+                # Extract condition name
+                code_text = res.get("code", {}).get("coding", [{}])[0].get("display", "Unknown Condition")
+                status = res.get("clinicalStatus", {}).get("coding", [{}])[0].get("code", "unknown")
+                conditions.append(f"- {code_text} ({status})")
+                
+            return "\n".join(conditions)
         except Exception as e:
-            return f"Error fetching meds: {e}"
+            print(f"[MCP] Conditions failed: {e}")
+            return f"Error fetching conditions: {e}"
+
+    def get_patient_allergies(self, patient_id: str) -> str:
+        """Fetches patient allergies/intolerances."""
+        try:
+            url = f"{self.base_url}/AllergyIntolerance?patient=Patient/{patient_id}"
+            print(f"[MCP] Fetching: {url}")
+            resp = requests.get(url, timeout=5)
+            
+            if resp.status_code != 200:
+                return "No allergies on file."
+            
+            bundle = resp.json()
+            if "entry" not in bundle:
+                return "No known allergies."
+                
+            allergies = []
+            for entry in bundle["entry"]:
+                res = entry["resource"]
+                substance = res.get("code", {}).get("coding", [{}])[0].get("display", "Unknown Substance")
+                reaction = "Unknown reaction"
+                # Try to find reaction manifestation
+                if "reaction" in res and len(res["reaction"]) > 0:
+                    manifest = res["reaction"][0].get("manifestation", [{}])[0].get("coding", [{}])[0].get("display")
+                    if manifest: reaction = manifest
+                
+                allergies.append(f"- {substance}: {reaction}")
+                
+            return "\n".join(allergies)
+        except Exception as e:
+            print(f"[MCP] Allergies failed: {e}")
+            return f"Error fetching allergies: {e}"
 
 # Instantiate global MCP server
 mcp_server = MCPServer()
@@ -97,16 +187,17 @@ mcp_server = MCPServer()
 def fetch_patient_record(patient_id: str) -> str:
     """
     Retrieves the full clinical context for a patient ID.
-    Includes Demographics, Recent Labs, and Active Medications.
+    Includes Demographics, Recent Labs, Active Medications, Conditions, Allergies.
     Use this tool to gather information before reasoning.
     """
     demographics = mcp_server.get_patient_demographics(patient_id)
     labs = mcp_server.get_patient_labs(patient_id)
     meds = mcp_server.get_patient_medications(patient_id)
-    
+    conditions = mcp_server.get_patient_conditions(patient_id)
+    allergies = mcp_server.get_patient_allergies(patient_id)
     return f"""
     === PATIENT RECORD: {patient_id} ===
-    
+   
     [DEMOGRAPHICS]
     {demographics}
     
@@ -115,6 +206,13 @@ def fetch_patient_record(patient_id: str) -> str:
     
     [CURRENT MEDICATIONS]
     {meds}
+
+    [CONDITIONS]
+    {conditions}
+
+    [ALLERGIES]
+    {allergies}
+
     ====================================
     """
 

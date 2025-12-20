@@ -1,43 +1,63 @@
+import os
 import json
 import requests
-from fhir.resources.patient import Patient
-from fhir.resources.observation import Observation
-from fhir.resources.condition import Condition
-from fhir.resources.medicationstatement import MedicationStatement
+from fhir.resources.R4B.patient import Patient
+from fhir.resources.R4B.observation import Observation
+from fhir.resources.R4B.condition import Condition
+from fhir.resources.R4B.medicationstatement import MedicationStatement
+from fhir.resources.R4B.allergyintolerance import AllergyIntolerance
 from datetime import datetime, timezone
 
 # Configuration
-FHIR_BASE_URL = "http://localhost:8080/fhir"
+FHIR_BASE_URL = os.getenv("FHIR_BASE_URL") or "http://localhost:8080/fhir"
+PATIENT_ID = "test-patient-001"
 
 def create_patient():
     """Creates a synthetic patient with Hypertension."""
     
-    # 1. Define Patient
+    # 1. Patient: John Doe
     pat = Patient(
-        id="test-patient-001",
+        id=PATIENT_ID,
+        active=True,
         gender="male",
-        birthDate="1970-01-01",
+        birthDate="1975-05-15",
         name=[{"family": "Doe", "given": ["John"]}]
     )
-    
-    # 2. Define Condition (Hypertension)
+
+    # 2. Condition: Hypertension (SNOMED: 38341003)
     cond = Condition(
-        subject={"reference": f"Patient/{pat.id}"},
+        id=f"{PATIENT_ID}-hypertension",
+        subject={"reference": f"Patient/{PATIENT_ID}"},
         clinicalStatus={"coding": [{"system": "http://terminology.hl7.org/CodeSystem/condition-clinical", "code": "active"}]},
-        code={
-            "coding": [{
-                "system": "http://snomed.info/sct",
-                "code": "38341003",
-                "display": "Hypertensive disorder, systemic arterial (disorder)"
-            }]
+        code={"coding": [{"system": "http://snomed.info/sct", "code": "38341003", "display": "Hypertension"}]}
+    )
+
+    # 3. Allergy: Penicillin (Crucial for Agentic Safety Checks)
+    allergy = AllergyIntolerance(
+        id=f"{PATIENT_ID}-allergy-pen",
+        patient={"reference": f"Patient/{PATIENT_ID}"},
+        clinicalStatus={"coding": [{"system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical", "code": "active"}]},
+        code={"coding": [{"system": "http://snomed.info/sct", "code": "764146007", "display": "Allergy to Penicillin"}]},
+        criticality="high"
+    )
+
+    # 4. Medication: Lisinopril (ACE Inhibitor)
+    # Using R4 structure: medicationCodeableConcept
+    med = MedicationStatement(
+        id=f"{PATIENT_ID}-med-1",
+        status="active",
+        subject={"reference": f"Patient/{PATIENT_ID}"},
+        dateAsserted=datetime.now(timezone.utc).isoformat(),
+        medicationCodeableConcept={
+            "coding": [{"system": "http://www.nlm.nih.gov/research/umls/rxnorm", "code": "29046", "display": "Lisinopril 10 MG"}]
         }
     )
 
-    # 3. Define Observation (High Blood Pressure)
-    # Passed all required fields (status, code) into constructor to avoid validation error
+    # 5. Obeservation: Blood Pressure
     obs = Observation(
+        id=f"{PATIENT_ID}-obs-1", # Standardized ID
         status="final",
-        subject={"reference": f"Patient/{pat.id}"},
+        subject={"reference": f"Patient/{PATIENT_ID}"}, # This link enables the search!
         code={
             "coding": [{"system": "http://loinc.org", "code": "85354-9", "display": "Blood pressure panel with all children optional"}]
         },
@@ -54,45 +74,22 @@ def create_patient():
         ]
     )
 
-    # 4. Define Current Medication (Lisinopril - ACE Inhibitor)
-    med = MedicationStatement(
-        status="active",
-        subject={"reference": f"Patient/{pat.id}"},
-        medication={
-            "concept": {
-                "coding": [{"system": "http://www.nlm.nih.gov/research/umls/rxnorm", "code": "29046", "display": "Lisinopril 10 MG Oral Tablet"}]
-            }
-        }
-    )
-
-    resources = [pat, cond, obs, med]
+    resources = [pat, cond, allergy, med, obs]
     
-    print(f"Seeding data to {FHIR_BASE_URL}...")
-    
-    for resource in resources:
-        resource_type = resource.__resource_type__
-        # Use PUT to upsert by ID if possible, or POST
-        url = f"{FHIR_BASE_URL}/{resource_type}/{resource.id}" if resource.id else f"{FHIR_BASE_URL}/{resource_type}"
+    for res in resources:
+        res_type = res.__resource_type__
+        # model_dump_json(exclude_none=True) keeps the payload clean
+        payload = json.loads(res.json()) 
         
-        # We need to convert pydantic model to json
-        # fhir.resources v7 uses .json() or .model_dump_json()
-        payload = json.loads(resource.json())
-        
+        url = f"{FHIR_BASE_URL}/{res_type}/{res.id}"
         try:
-            # Try PUT to create/update with specific ID
-            if resource.id:
-                 resp = requests.put(url, json=payload)
-            else:
-                 resp = requests.post(url, json=payload)
-            
+            resp = requests.put(url, json=payload)
             if resp.status_code in [200, 201]:
-                print(f"✅ Created/Updated {resource_type}")
+                print(f"✅ Synced {res_type}/{res.id}")
             else:
-                print(f"❌ Failed {resource_type}: {resp.status_code} - {resp.text}")
+                print(f"❌ Error {res_type}: {resp.text}")
         except Exception as e:
-            print(f"Connection Error: {e}")
-            print("Ensure HAPI FHIR is running (docker-compose up -d hapi-fhir)")
-            break
+            print(f"Connection failed: {e}")
 
 if __name__ == "__main__":
     create_patient()
