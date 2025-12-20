@@ -1,0 +1,18 @@
+# Environment
+.env
+venv/
+__pycache__/
+*.pyc
+
+# Data
+data/raw_guidelines/*
+!data/raw_guidelines/.gitkeep
+data/synthetic_patients/*
+!data/synthetic_patients/.gitkeep
+qdrant_data/
+fhir_data/
+
+# IDE
+.vscode/
+.idea/
+

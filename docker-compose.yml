@@ -1,0 +1,29 @@
+services:
+  # Vector Database for Medical Knowledge
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - ./qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+  # FHIR Server for Patient Data (HAPI FHIR)
+  hapi-fhir:
+    image: hapiproject/hapi:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - hapi.fhir.fhir_version=R4
+    volumes:
+      - ./fhir_data:/usr/local/tomcat/target/hapi-fhir-jpaserver-starter/WEB-INF/classes/hapi-fhir-jpaserver-starter
+    restart: unless-stopped
+
+  # Arize Phoenix for Tracing (Optional - can also run local python process)
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    ports:
+      - "6006:6006" # UI
+      - "4317:4317" # OTLP gRPC
+    restart: unless-stopped
+
