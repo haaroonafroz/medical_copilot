@@ -16,3 +16,6 @@ fhir_data/
 .vscode/
 .idea/
 
+# specific files
+Dev_requirement_Doc.md
+medical-collection_info.json
