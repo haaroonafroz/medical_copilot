@@ -23,6 +23,6 @@ def data_fetcher_node(state: AgentState):
 
     return {
         "patient_data": patient_data,
-        "messages": [{"role": "tool", "content": f"Fetched data for {patient_id}"}]
+        "messages": [{"role": "system", "content": f"System Notification: Successfully fetched FHIR data for patient {patient_id}"}]
     }
 
