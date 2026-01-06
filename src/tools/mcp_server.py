@@ -15,9 +15,10 @@ class MCPServer:
 
     def get_patient_demographics(self, patient_id: str) -> str:
         """Fetches basic patient details."""
+        # print("Tool called: get_patient_demographics")
         try:
             url = f"{self.base_url}/Patient/{patient_id}"
-            print(f"[MCP] Fetching: {url}") # Debugging
+            # print(f"[MCP] Fetching: {url}") # Debugging
             resp = requests.get(url)
             if resp.status_code != 200:
                 print(f"[MCP] Error {resp.status_code}: {resp.text}")
@@ -32,9 +33,10 @@ class MCPServer:
 
     def get_patient_labs(self, patient_id: str) -> str:
         """Fetches recent observations (labs/vitals) for the patient."""
+        # print("Tool called: get_patient_labs")
         try:
             url = f"{self.base_url}/Observation?subject=Patient/{patient_id}"
-            print(f"[MCP] Fetching: {url}") # Debugging
+            # print(f"[MCP] Fetching: {url}") # Debugging
             resp = requests.get(url)
             if resp.status_code != 200:
                 print(f"[MCP] Error {resp.status_code}: {resp.text}")
@@ -75,6 +77,7 @@ class MCPServer:
         Fetches active medications from both MedicationStatement (reported) 
         and MedicationRequest (prescribed).
         """
+        # print("Tool called: get_patient_medications")
         meds = []
         # 1. Search across two different FHIR resources to be thorough
         resources = ["MedicationStatement", "MedicationRequest"]
@@ -83,7 +86,7 @@ class MCPServer:
             try:
                 # We filter by 'active' status to avoid showing old prescriptions
                 url = f"{self.base_url}/{res_type}?subject=Patient/{patient_id}&status=active"
-                print(f"[MCP] Fetching: {url}") # Debugging
+                # print(f"[MCP] Fetching: {url}") # Debugging
                 resp = requests.get(url)
                 
                 if resp.status_code != 200:
@@ -121,9 +124,10 @@ class MCPServer:
 
     def get_patient_conditions(self, patient_id: str) -> str:
         """Fetches active conditions/diagnoses."""
+        # print("Tool called: get_patient_conditions")
         try:
             url = f"{self.base_url}/Condition?subject=Patient/{patient_id}"
-            print(f"[MCP] Fetching: {url}")
+            # print(f"[MCP] Fetching: {url}")
             resp = requests.get(url, timeout=5)
             
             if resp.status_code != 200:
@@ -150,9 +154,10 @@ class MCPServer:
 
     def get_patient_allergies(self, patient_id: str) -> str:
         """Fetches patient allergies/intolerances."""
+        # print("Tool called: get_patient_allergies")
         try:
             url = f"{self.base_url}/AllergyIntolerance?patient=Patient/{patient_id}"
-            print(f"[MCP] Fetching: {url}")
+            # print(f"[MCP] Fetching: {url}")
             resp = requests.get(url, timeout=5)
             
             if resp.status_code != 200:
@@ -190,11 +195,13 @@ def fetch_patient_record(patient_id: str) -> str:
     Includes Demographics, Recent Labs, Active Medications, Conditions, Allergies.
     Use this tool to gather information before reasoning.
     """
+    print("Tool called: fetch_patient_record")
     demographics = mcp_server.get_patient_demographics(patient_id)
     labs = mcp_server.get_patient_labs(patient_id)
     meds = mcp_server.get_patient_medications(patient_id)
     conditions = mcp_server.get_patient_conditions(patient_id)
     allergies = mcp_server.get_patient_allergies(patient_id)
+    print("Tool called: fetch_patient_record - completed")
     return f"""
     === PATIENT RECORD: {patient_id} ===
    
@@ -215,4 +222,3 @@ def fetch_patient_record(patient_id: str) -> str:
 
     ====================================
     """
-

@@ -27,7 +27,7 @@ def main():
         # Create initial state
         initial_state = {
             "messages": chat_history + [HumanMessage(content=user_input)],
-            "patient_id": None # Reset or keep based on preference, here we reset for safety
+            "patient_id": None
         }
         
         print("\n--- Agent Thinking ---")
