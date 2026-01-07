@@ -2,7 +2,7 @@ from langchain_core.messages import SystemMessage
 from langchain_openai import ChatOpenAI
 from agents.state import AgentState
 from config import settings
-from tools.mcp_server import fetch_patient_record
+from tools.patient_records_tool import fetch_patient_record
 from tools.clinical_tools import check_drug_interactions, calculate_cardiovascular_risk, summarize_patient_history
 
 # Initialize LLM with Tools

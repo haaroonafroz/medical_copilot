@@ -1,5 +1,5 @@
 from agents.state import AgentState
-from tools.mcp_server import fetch_patient_record
+from tools.patient_records_tool import fetch_patient_record
 
 def data_fetcher_node(state: AgentState):
     """
