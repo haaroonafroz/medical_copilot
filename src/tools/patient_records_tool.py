@@ -3,11 +3,9 @@ from typing import Dict, Any, List
 from langchain_core.tools import tool
 from config import settings
 
-class MCPServer:
+class FETCH_PATIENT_RECORDS:
     """
-    A simplified representation of an MCP Server that exposes FHIR data as tools.
-    In a full MCP implementation, this would run as a separate process or service.
-    Here we embed it directly for the Agent to use.
+    Contains the functions to fetch patient record from the FHIR server.
     """
     
     def __init__(self):
@@ -21,7 +19,7 @@ class MCPServer:
             # print(f"[MCP] Fetching: {url}") # Debugging
             resp = requests.get(url)
             if resp.status_code != 200:
-                print(f"[MCP] Error {resp.status_code}: {resp.text}")
+                print(f"[Sub-tool: get_patient_demographics] Error {resp.status_code}: {resp.text}")
                 return f"Error: Patient {patient_id} not found."
             
             data = resp.json()
@@ -39,7 +37,7 @@ class MCPServer:
             # print(f"[MCP] Fetching: {url}") # Debugging
             resp = requests.get(url)
             if resp.status_code != 200:
-                print(f"[MCP] Error {resp.status_code}: {resp.text}")
+                print(f"[Sub-tool: get_patient_labs] Error {resp.status_code}: {resp.text}")
                 return "No lab results found."
             
             bundle = resp.json()
@@ -90,12 +88,12 @@ class MCPServer:
                 resp = requests.get(url)
                 
                 if resp.status_code != 200:
-                    print(f"[MCP] Error {resp.status_code}: {resp.text}")
+                    print(f"[Sub-tool: get_patient_medications] Error {resp.status_code}: {resp.text}")
                     continue
                 
                 bundle = resp.json()
                 if "entry" not in bundle:
-                    print(f"[MCP] No entries found in bundle")
+                    print(f"[Sub-tool: get_patient_medications] No entries found in bundle")
                     continue
 
                 for entry in bundle["entry"]:
@@ -115,7 +113,7 @@ class MCPServer:
                     meds.append(f"[{res_type}] {name}")
                     
             except Exception as e:
-                print(f"[MCP] Error fetching {res_type}: {e}")
+                print(f"[Sub-tool: get_patient_medications] Error fetching {res_type}: {e}")
 
         if not meds:
             return "No active medications found on file."
@@ -131,12 +129,12 @@ class MCPServer:
             resp = requests.get(url, timeout=5)
             
             if resp.status_code != 200:
-                print(f"[MCP] Error {resp.status_code}: {resp.text}")
+                print(f"[Sub-tool: get_patient_conditions] Error {resp.status_code}: {resp.text}")
                 return "No conditions found."
             
             bundle = resp.json()
             if "entry" not in bundle:
-                print(f"[MCP] No entries found in bundle")
+                print(f"[Sub-tool: get_patient_conditions] No entries found in bundle")
                 return "No active conditions."
                 
             conditions = []
@@ -149,7 +147,7 @@ class MCPServer:
                 
             return "\n".join(conditions)
         except Exception as e:
-            print(f"[MCP] Conditions failed: {e}")
+            print(f"[Sub-tool: get_patient_conditions] Conditions failed: {e}")
             return f"Error fetching conditions: {e}"
 
     def get_patient_allergies(self, patient_id: str) -> str:
@@ -181,11 +179,11 @@ class MCPServer:
                 
             return "\n".join(allergies)
         except Exception as e:
-            print(f"[MCP] Allergies failed: {e}")
+            print(f"[Sub-tool: get_patient_allergies] Allergies failed: {e}")
             return f"Error fetching allergies: {e}"
 
 # Instantiate global MCP server
-mcp_server = MCPServer()
+patient_records = FETCH_PATIENT_RECORDS()
 
 # Define LangChain Tools
 @tool
@@ -196,11 +194,11 @@ def fetch_patient_record(patient_id: str) -> str:
     Use this tool to gather information before reasoning.
     """
     print("Tool called: fetch_patient_record")
-    demographics = mcp_server.get_patient_demographics(patient_id)
-    labs = mcp_server.get_patient_labs(patient_id)
-    meds = mcp_server.get_patient_medications(patient_id)
-    conditions = mcp_server.get_patient_conditions(patient_id)
-    allergies = mcp_server.get_patient_allergies(patient_id)
+    demographics = patient_records.get_patient_demographics(patient_id)
+    labs = patient_records.get_patient_labs(patient_id)
+    meds = patient_records.get_patient_medications(patient_id)
+    conditions = patient_records.get_patient_conditions(patient_id)
+    allergies = patient_records.get_patient_allergies(patient_id)
     print("Tool called: fetch_patient_record - completed")
     return f"""
     === PATIENT RECORD: {patient_id} ===
