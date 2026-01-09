@@ -62,4 +62,3 @@ def build_graph():
 
 # Global instance
 agent_graph = build_graph()
-

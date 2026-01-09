@@ -5,8 +5,6 @@ from langchain_openai import OpenAIEmbeddings
 from config import settings
 
 class VectorStore:
-    # Based on your medical-collection_info.json, the vector is named 'patient-labs'.
-    # We must use this name for all operations.
     VECTOR_NAME = "patient-labs"
 
     def __init__(self):
@@ -24,7 +22,6 @@ class VectorStore:
 
         print(f"Collection {self.collection_name} not found. Creating...")
         
-        # Define vector config based on whether we use a named vector
         if self.VECTOR_NAME:
             vectors_config = {
                 self.VECTOR_NAME: models.VectorParams(
@@ -65,14 +62,24 @@ class VectorStore:
         )
         print(f"Upserted {len(points)} documents.")
 
-    def search(self, query: str, limit: int = 3) -> List[Dict]:
+    def search(self, query: str, limit: int = 3, condition_filter: str = None) -> List[Dict]:
         """Semantic search using the robust query_points API."""
         query_vector = self.embeddings.embed_query(query)
-        
-        # 'query_points' is the standard method in newer clients
+
+        query_filter = None
+        if condition_filter and condition_filter != "General":
+            query_filter = models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="condition",
+                        match=models.MatchValue(value=condition_filter)
+                    )
+                ]
+            )
         response = self.client.query_points(
             collection_name=self.collection_name,
             query=query_vector,
+            query_filter=query_filter,
             using=self.VECTOR_NAME,
             limit=limit,
             with_payload=True
@@ -85,6 +92,7 @@ class VectorStore:
             results.append({
                 "content": hit.payload.get("content", ""),
                 "source": hit.payload.get("source", "unknown"),
+                "condition": hit.payload.get("condition", "unknown"),
                 "score": hit.score
             })
         return results
