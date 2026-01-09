@@ -15,50 +15,63 @@ def check_drug_interactions(medications: List[str]) -> str:
     Input: List of drug names (e.g., ['Lisinopril', 'Aspirin']).
     """
     print("Tool called: check_drug_interactions")
-    if len(medications) < 2:
-        return "No interactions check needed (less than 2 drugs)."
 
-    print(f"Checking interactions for: {medications}")
-    
-    # 1. Get RxCUI (ID) for each drug
+    if len(medications) < 2:
+        return "No interaction check needed (less than 2 drugs)."
+
     rxcuis = []
+
+    # 1. Resolve drug names to RxCUIs
     for med in medications:
         try:
-            # Simple search
-            resp = requests.get(f"https://rxnav.nlm.nih.gov/REST/rxcui.json?name={med}")
+            resp = requests.get(
+                "https://rxnav.nlm.nih.gov/REST/rxcui.json",
+                params={"name": med},
+                timeout=5
+            )
+            resp.raise_for_status()
             data = resp.json()
-            if "idGroup" in data and "rxnormId" in data["idGroup"]:
-                rxcuis.append(data["idGroup"]["rxnormId"][0])
-        except:
-            pass
-            
-    if len(rxcuis) < 2:
-        return "Could not identify enough drugs in standard database to check interactions."
 
-    # 2. Check Interactions
-    ids = "+".join(rxcuis)
-    url = f"https://rxnav.nlm.nih.gov/REST/interaction/list.json?rxcuis={ids}"
-    
+            ids = data.get("idGroup", {}).get("rxnormId", [])
+            if ids:
+                rxcuis.append(ids[0])
+            else:
+                print(f"Could not resolve RxCUI for: {med}")
+
+        except Exception as e:
+            print(f"Error resolving {med}: {e}")
+
+    if len(rxcuis) < 2:
+        return (
+            "Could not identify enough medications in RxNorm to check interactions. "
+            "This may happen for brand names or uncommon drugs."
+        )
+
+    # 2. Check interactions
     try:
-        resp = requests.get(url)
+        url = "https://rxnav.nlm.nih.gov/REST/interaction/list.json"
+        resp = requests.get(url, params={"rxcuis": "+".join(rxcuis)}, timeout=5)
+        resp.raise_for_status()
         data = resp.json()
-        
+
         interactions = []
-        if "fullInteractionTypeGroup" in data:
-            for group in data["fullInteractionTypeGroup"]:
-                for vtype in group["fullInteractionType"]:
-                    for interaction in vtype["interactionPair"]:
-                        desc = interaction["description"]
-                        severity = interaction["severity"]
-                        if severity == "high": # Filter for serious ones
-                            interactions.append(f"HIGH SEVERITY: {desc}")
-                            
+
+        for group in data.get("fullInteractionTypeGroup", []):
+            for ftype in group.get("fullInteractionType", []):
+                for pair in ftype.get("interactionPair", []):
+                    desc = pair.get("description", "Interaction detected")
+                    severity = pair.get("severity", "").lower()
+
+                    if severity == "high":
+                        interactions.append(f"HIGH SEVERITY: {desc}")
+
         if not interactions:
-            return "No high-severity interactions found."
-            
+            return "No high-severity drug interactions found."
+
         return "\n".join(interactions)
+
     except Exception as e:
-        return f"Error checking interactions: {e}"
+        return f"Error while checking drug interactions: {e}"
 
 # --- Tool 2: Risk Calculator (Simplified ASCVD) ---
 @tool
