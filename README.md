@@ -10,7 +10,7 @@ In modern healthcare, doctors are overwhelmed by data. They must synthesize:
 1.  **Electronic Health Records (EHR):** Scattered labs, notes, and medication lists.
 2.  **Medical Literature:** Constantly changing clinical guidelines (e.g., Hypertension management).
 
-This cognitive load leads to burnout and errors. The **Medical Co-Pilot** is not just a chatbot; it is an **Agentic System** that acts as a second pair of eyes. It doesn't just "chat"—it **thinks**, retrieves evidence, verifies patient history, and proposes a treatment plan for human review.
+This cognitive load leads to burnout and errors. The **Medical Co-Pilot** is not just a chatbot; it is an **Agentic System** that acts as a second pair of eyes. It uses an **Agentic RAG architecture** designed for accurate tool calling and strictly guideline-based advisory for cross-examining patients and flagging abnormalities. It doesn't just "chat"—it **thinks**, retrieves evidence, verifies patient history, and proposes a treatment plan for human review.
 
 ---
 
@@ -19,14 +19,14 @@ This cognitive load leads to burnout and errors. The **Medical Co-Pilot** is not
 This project moves beyond simple RAG (Retrieval-Augmented Generation) to **Agentic RAG**. It uses a graph-based orchestration engine to model the clinical decision-making process.
 
 ### The Agentic Flow (State Machine)
-The agent is built on **LangGraph**, operating as a state machine with distinct cognitive steps:
+The agent is built on **LangGraph**, operating as a state machine with distinct cognitive steps (nodes):
 
 1.  **Triage Node:**
     *   **Goal:** Understands the user's intent and extracts the unique Patient ID using structured output (Pydantic).
     *   *AI Logic:* "Is the user asking for a review? Which patient is this about?"
 
-2.  **Patient Data Node (MCP Standard):**
-    *   **Goal:** Connects to the **FHIR Server** (HAPI FHIR) via the **Model Context Protocol (MCP)**.
+2.  **Patient Data Node (FHIR Tooling):**
+    *   **Goal:** Connects to the **FHIR Server** (HAPI FHIR) via **LangChain Tools**.
     *   *AI Logic:* "I need the latest labs (BP, Lipid Panel), active conditions, and current medications for Patient X."
     *   *Tech:* Uses standardized tool calling to fetch real-time structured clinical data.
 
@@ -37,11 +37,13 @@ The agent is built on **LangGraph**, operating as a state machine with distinct 
 
 4.  **Reasoning Node (The "Brain"):**
     *   **Goal:** Synthesizes the *Patient Data* + *Medical Evidence* to form a recommendation.
-    *   *AI Logic:* "Patient is on Lisinopril but BP is still 150/95. Guidelines suggest adding a Thiazide diuretic for this demographic. I will recommend this change."
+    *   Can proactively use **Clinical Tools** before answering:
+        *   **Risk Calculator:** Computes ASCVD 10-year risk for Statin/BP therapy decisions.
+        *   **Interaction Checker:** Checks NIH RxNorm for dangerous drug-drug interactions.
+    *   *AI Logic:* "Patient is on Lisinopril but BP is still 150/95. Guidelines suggest adding a Thiazide. Checking interaction between Lisinopril and Hydrochlorothiazide... Safe. Recommending addition."
 
-5.  **Critique & Human-in-the-Loop (Safety):**
-    *   **Goal:** Ensures safety before output.
-    *   *AI Logic:* "Wait, does this new drug interact with their current allergy list?" (Future Implementation)
+5.  **Tool Executor Node (ReAct Loop):**
+    *   **Goal:** Executes the deterministic tools requested by the Reasoning Node and loops the result back for final synthesis.
 
 ---
 
@@ -51,7 +53,7 @@ The agent is built on **LangGraph**, operating as a state machine with distinct 
 *   **LLM:** `OpenAI GPT-4o-mini` (Clinical reasoning).
 *   **Data Standard:** `HL7 FHIR` (via `fhir.resources` & HAPI FHIR Server).
 *   **Vector Database:** `Qdrant` (Knowledge retrieval).
-*   **Tooling:** `MCP` (Model Context Protocol) for standardized data access.
+*   **Tooling:** `Langchain` tools with `@tool` decorator.
 *   **Validation:** `Pydantic V2` (Strict schema validation).
 *   **Infrastructure:** `Docker` (Containerized FHIR & Vector DB).
 
@@ -102,10 +104,7 @@ Before the agent can reason, it needs knowledge and patients.
     ```
 
 2.  **Seed Synthetic Patient (Context)**
-    Creates "John Doe" (ID: `test-patient-001`) in the FHIR server with:
-    *   Condition: Hypertension
-    *   Observation: BP 150/95 mmHg (Uncontrolled)
-    *   Medication: Lisinopril 10mg
+    Loads a bulk dataset of 100+ synthetic patients (Synthea) into the local FHIR server.
     ```bash
     python scripts/seed_fhir.py
     ```
@@ -123,13 +122,14 @@ Interact with the agent via the CLI.
 
 2.  **Test Case:**
     Type the following prompt when asked:
-    > **"Review patient test-patient-001"**
+    > **"Review patient synthetic-e205f5cb8f40"** (or any ID from the fhir server data)
 
 3.  **Expected Output:**
-    *   **Triage:** Identifies `test-patient-001`.
-    *   **Fetch:** Retrieves John Doe's High BP (150/95) and Lisinopril.
-    *   **Retrieve:** Finds the guideline saying "BP > 140/90 requires escalation."
-    *   **Reason:** Recommends adding a second agent (e.g., Hydrochlorothiazide) citing the specific guideline.
+    *   **Triage:** Identifies the ID.
+    *   **Fetch:** Retrieves FHIR bundle.
+    *   **Retrieve:** Finds relevant guidelines.
+    *   **Tool Use:** Might calculate cardiovascular risk or check drug interactions.
+    *   **Reason:** Outputs a structured Assessment & Plan.
 
 ---
 
@@ -137,4 +137,4 @@ Interact with the agent via the CLI.
 
 *   **Streamlit UI:** Replace CLI with a chat interface displaying retrieved citations side-by-side.
 *   **Observability:** Integrate **Arize Phoenix** to trace the "thought process" of the agent visually.
-*   **Allergy Check:** Implement the `CritiqueNode` to auto-reject prescriptions that conflict with patient allergies.
+*   **Deterministic Safety:** Implement a `CDSRulesEngine` to hard-validate recommendations against contraindications (e.g., Allergy checks).

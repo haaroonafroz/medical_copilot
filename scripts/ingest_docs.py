@@ -23,9 +23,6 @@ def load_and_ingest():
 
     with open(guideline_path, "r", encoding="utf-8") as f:
         text = f.read()
-
-    # In a real app, we would chunk this text properly (e.g., using RecursiveCharacterTextSplitter)
-    # For this demo, we'll treat the whole file as one chunk or split by '##'
     chunks = text.split("## ")
     
     docs = []
