@@ -5,6 +5,7 @@ from agents.nodes.data_fetcher import data_fetcher_node
 from agents.nodes.retrieval import retrieval_node
 from agents.nodes.reasoning import reasoning_node
 from agents.nodes.tool_executor import tool_node
+from agents.nodes.grader import grader_node
 
 def build_graph():
     """
@@ -16,6 +17,7 @@ def build_graph():
     workflow.add_node("triage", triage_node)
     workflow.add_node("fetch_data", data_fetcher_node)
     workflow.add_node("retrieve_knowledge", retrieval_node)
+    workflow.add_node("grade_documents", grader_node)
     workflow.add_node("reason", reasoning_node)
     workflow.add_node("tools", tool_node)
 
@@ -38,7 +40,26 @@ def build_graph():
     )
 
     workflow.add_edge("fetch_data", "retrieve_knowledge")
-    workflow.add_edge("retrieve_knowledge", "reason")
+    workflow.add_edge("retrieve_knowledge", "grade_documents")
+    
+    # Conditional logic: If documents are irrelevant, retry retrieval. Else, proceed to reasoning.
+    def check_grade(state: AgentState):
+        status = state.get("grading_status")
+        retries = state.get("retrieval_retries", 0)
+        
+        if status == "irrelevant" and retries < 3:
+            return "retrieve_knowledge" # Loop back
+        return "reason" # Proceed
+
+    # Conditional edges for grading and retrying retrieval if necessary.
+    workflow.add_conditional_edges(
+        "grade_documents",
+        check_grade,
+        {
+            "retrieve_knowledge": "retrieve_knowledge",
+            "reason": "reason"
+        }
+    )
     
     def check_tool_calls(state: AgentState):
         last_message = state["messages"][-1]
