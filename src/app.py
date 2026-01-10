@@ -135,7 +135,12 @@ if prompt := st.chat_input("Enter clinical query or patient ID..."):
                                 for d in docs:
                                     st.caption(f"Source: {d.get('source', 'Unknown')}")
                                     st.markdown(f"> {d.get('content')[:200]}...")
-
+                    elif node == "grade_documents":
+                        grading_status = values.get("grading_status", "Unknown")
+                        status_container.write(f"🔍 **Grading:** Documents are {grading_status}.")
+                        if grading_status == "irrelevant":
+                            status_container.write(f"🔍 **Grading:** Documents are irrelevant. Retrying retrieval...")
+                            
                     elif node == "tools":
                         # Visualize tool outputs
                         # ToolNode output is usually in messages as ToolMessage
