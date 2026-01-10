@@ -33,21 +33,16 @@ def reasoning_node(state: AgentState):
     === TASK ===
     1. Analyze the patient's condition.
     2. USE TOOLS if necessary:
-       - If managing Hypertension/Lipids, calculate ASCVD Risk.
-       - If proposing new medications, check for Drug Interactions.
+       - If managing Hypertension/Lipids, calculate ASCVD Risk. Use the calculate_cardiovascular_risk tool.
+       - If proposing new medications, check for Drug Interactions. Use the check_drug_interactions tool.
        - If summarizing patient history, use the summarize_patient_history tool.
        - If fetching patient record, use the fetch_patient_record tool.
     3. If you have enough information, provide the final Assessment and Plan.
     
     RESPONSE FORMAT:
     - If using a tool: Just call the tool.
-    - If finishing: Provide **Assessment**, **Plan**, and **Evidence**.
+    - If finishing: based on the user query, provide **Assessment**, **Plan**, and **Evidence**.
     """
-    
-    # Only add system prompt if it's not already in the history (to avoid duplication in loops)
-    # A simple heuristic: check if the first message is a SystemMessage with "PATIENT DATA"
-    # Or simpler: just invoke with context each time, but OpenAI handles history well.
-    # For LangGraph, we usually append the system prompt to the list for the current invoke
     
     response = llm.invoke([SystemMessage(content=system_prompt)] + messages)
     

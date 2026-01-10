@@ -28,3 +28,4 @@ ragas>=0.1.0
 pandas>=2.2.0
 tiktoken>=0.6.0
 PyPDF2>=3.0.0
+docling>=2.67.0

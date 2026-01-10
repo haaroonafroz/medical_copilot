@@ -13,6 +13,8 @@ class AgentState(TypedDict):
     patient_id: Optional[str]
     patient_data: Optional[str]  # Raw text from FHIR
     retrieved_docs: Optional[List[Dict]] # Results from Qdrant
+    search_query: Optional[str] # Search query for the vector database
+    triage_intent: Optional[str] # Intent of the user's query
     
     # Reasoning outputs
     initial_assessment: Optional[str]

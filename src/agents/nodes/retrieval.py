@@ -63,5 +63,6 @@ def retrieval_node(state: AgentState):
 
     return {
         "retrieved_docs": results,
+        "search_query": search_query,
         "messages": [{"role": "system", "content": f"Retrieved {len(results)} guidelines for {condition_filter}."}]
     }

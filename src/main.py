@@ -1,5 +1,6 @@
 import os
 import sys
+import traceback
 from dotenv import load_dotenv
 
 # Ensure src is in path
@@ -36,12 +37,7 @@ def main():
             for event in agent_graph.stream(initial_state):
                 for key, value in event.items():
                     print(f"Finished Node: {key}")
-                    # Optional: Print intermediate outputs
-                    # if "messages" in value:
-                    #     print(f"Log: {value['messages'][-1].content}")
-            
-            # Get final state from the invocation (re-invoking for final result or storing last event)
-            # The stream yields updates. We can also just invoke.
+
             final_state = agent_graph.invoke(initial_state)
             
             # Display Final Response
@@ -54,7 +50,6 @@ def main():
             
         except Exception as e:
             print(f"Error: {e}")
-            import traceback
             traceback.print_exc()
 
 if __name__ == "__main__":

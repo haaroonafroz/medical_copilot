@@ -28,6 +28,7 @@ def triage_node(state: AgentState):
     Your Capabilities:
     1. Retrieve comprehensive Patient Records (Demographics, Labs, Meds, Conditions, Allergies) via FHIR.
     2. Search Clinical Guidelines (Vector DB) for evidence-based treatment protocols.
+    3. Use tools for comprehensive assessment and treatment planning (e.g., ASCVD risk calculator, drug interaction checker, history summarizer).
     
     Your Job:
     - Analyze the user's query.
@@ -64,5 +65,6 @@ def triage_node(state: AgentState):
     # Return updates to the state
     return {
         "patient_id": patient_id if patient_id else state.get('patient_id'),
+        "triage_intent": intent,
         "messages": [triage_msg] 
     }

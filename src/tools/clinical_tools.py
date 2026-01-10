@@ -102,6 +102,7 @@ def calculate_cardiovascular_risk(age: int, systolic_bp: int, smoker: bool, diab
     if risk_score >= 7.5: category = "Elevated Risk (Consider Statin)"
     if risk_score >= 20.0: category = "High Risk"
 
+    print(f"10-Year ASCVD Risk Estimate: {risk_score:.1f}% ({category})")
     return f"10-Year ASCVD Risk Estimate: {risk_score:.1f}% ({category})"
 
 # --- Tool 3: History Summarizer ---
