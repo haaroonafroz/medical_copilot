@@ -33,16 +33,20 @@ The agent is built on **LangGraph**, operating as a state machine with distinct 
 3.  **Knowledge Retrieval Node (Semantic Memory):**
     *   **Goal:** Searches the **Vector Database (Qdrant)** for relevant medical guidelines.
     *   *AI Logic:* "The patient has Hypertension. I need the 2025 JNC 8 or ACC/AHA guidelines for Stage 1 Hypertension treatment."
-    *   *Tech:* Uses OpenAI Embeddings and Hybrid Search.
+    *   *Tech:* Uses OpenAI Embeddings and Hybrid Search with metadata filtering.
 
-4.  **Reasoning Node (The "Brain"):**
+4.  **Grader Node (Self-Correction Loop):**
+    *   **Goal:** Evaluates if the retrieved documents actually answer the user's query.
+    *   *AI Logic:* "Do these chunks talk about side effects? No? Refine search query and try again (up to 3 times)."
+
+5.  **Reasoning Node (The "Brain"):**
     *   **Goal:** Synthesizes the *Patient Data* + *Medical Evidence* to form a recommendation.
     *   Can proactively use **Clinical Tools** before answering:
         *   **Risk Calculator:** Computes ASCVD 10-year risk for Statin/BP therapy decisions.
         *   **Interaction Checker:** Checks NIH RxNorm for dangerous drug-drug interactions.
     *   *AI Logic:* "Patient is on Lisinopril but BP is still 150/95. Guidelines suggest adding a Thiazide. Checking interaction between Lisinopril and Hydrochlorothiazide... Safe. Recommending addition."
 
-5.  **Tool Executor Node (ReAct Loop):**
+6.  **Tool Executor Node (ReAct Loop):**
     *   **Goal:** Executes the deterministic tools requested by the Reasoning Node and loops the result back for final synthesis.
 
 ---
@@ -56,6 +60,7 @@ The agent is built on **LangGraph**, operating as a state machine with distinct 
 *   **Tooling:** `Langchain` tools with `@tool` decorator.
 *   **Validation:** `Pydantic V2` (Strict schema validation).
 *   **Infrastructure:** `Docker` (Containerized FHIR & Vector DB).
+*   **Frontend:** `Streamlit` (Interactive Dashboard).
 
 ---
 
@@ -113,16 +118,17 @@ Before the agent can reason, it needs knowledge and patients.
 
 ##  5. Usage
 
-Interact with the agent via the CLI.
+Interact with the agent via the UI.
 
-1.  **Run the Agent:**
+1.  **Run the Streamlit App:**
     ```bash
-    python src/main.py
+    streamlit run src/app.py
     ```
 
 2.  **Test Case:**
-    Type the following prompt when asked:
-    > **"Review patient synthetic-e205f5cb8f40"** (or any ID from the fhir server data)
+    *   Select a patient from the sidebar dropdown (auto-loaded from FHIR server).
+    *   Click **"Load Patient Context"**.
+    *   Watch the "Thinking" expander to see the agent Triage -> Fetch -> Retrieve -> Grade -> Reason.
 
 3.  **Expected Output:**
     *   **Triage:** Identifies the ID.
@@ -135,6 +141,5 @@ Interact with the agent via the CLI.
 
 ##  6. Future Roadmap
 
-*   **Streamlit UI:** Replace CLI with a chat interface displaying retrieved citations side-by-side.
 *   **Observability:** Integrate **Arize Phoenix** to trace the "thought process" of the agent visually.
 *   **Deterministic Safety:** Implement a `CDSRulesEngine` to hard-validate recommendations against contraindications (e.g., Allergy checks).

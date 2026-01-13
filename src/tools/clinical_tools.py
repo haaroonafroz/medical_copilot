@@ -21,55 +21,86 @@ def check_drug_interactions(medications: List[str]) -> str:
 
     rxcuis = []
 
-    # 1. Resolve drug names to RxCUIs
+    # 1. Resolve drug names to RxCUIs using the correct endpoint
     for med in medications:
         try:
+            # Use the approximate match endpoint for better results
             resp = requests.get(
-                "https://rxnav.nlm.nih.gov/REST/rxcui.json",
-                params={"name": med},
-                timeout=5
+                "https://rxnav.nlm.nih.gov/REST/approximateTerm.json",
+                params={"term": med, "maxEntries": 1},
+                timeout=10
             )
             resp.raise_for_status()
             data = resp.json()
-
-            ids = data.get("idGroup", {}).get("rxnormId", [])
-            if ids:
-                rxcuis.append(ids[0])
+            
+            # Extract RxCUI from candidate list
+            candidates = data.get("approximateGroup", {}).get("candidate")
+            if candidates and len(candidates) > 0:
+                rxcui = candidates[0].get("rxcui")
+                if rxcui:
+                    rxcuis.append(rxcui)
+                    print(f"Resolved {med} to RxCUI: {rxcui}")
+                else:
+                    print(f"Could not resolve RxCUI for: {med}")
             else:
-                print(f"Could not resolve RxCUI for: {med}")
+                print(f"No candidates found for: {med}")
 
+        except requests.exceptions.RequestException as e:
+            print(f"Network error resolving {med}: {e}")
         except Exception as e:
             print(f"Error resolving {med}: {e}")
 
     if len(rxcuis) < 2:
         return (
             "Could not identify enough medications in RxNorm to check interactions. "
-            "This may happen for brand names or uncommon drugs."
+            "This may happen for brand names or uncommon drugs. "
+            f"Resolved {len(rxcuis)} out of {len(medications)} medications."
         )
 
-    # 2. Check interactions
+    # 2. Check interactions between all pairs
     try:
+        # Format: separate rxcui parameters (not joined with +)
         url = "https://rxnav.nlm.nih.gov/REST/interaction/list.json"
-        resp = requests.get(url, params={"rxcuis": "+".join(rxcuis)}, timeout=5)
+        params = {"rxcuis": " ".join(rxcuis)}  # Space-separated, not +
+        
+        resp = requests.get(url, params=params, timeout=10)
         resp.raise_for_status()
         data = resp.json()
-
+        
         interactions = []
-
-        for group in data.get("fullInteractionTypeGroup", []):
-            for ftype in group.get("fullInteractionType", []):
-                for pair in ftype.get("interactionPair", []):
+        
+        # Navigate the response structure correctly
+        full_interaction_groups = data.get("fullInteractionTypeGroup", [])
+        
+        if not full_interaction_groups:
+            return "No drug interactions found in RxNorm database."
+        
+        for group in full_interaction_groups:
+            for interaction_type in group.get("fullInteractionType", []):
+                for pair in interaction_type.get("interactionPair", []):
                     desc = pair.get("description", "Interaction detected")
-                    severity = pair.get("severity", "").lower()
-
-                    if severity == "high":
-                        interactions.append(f"HIGH SEVERITY: {desc}")
+                    severity = pair.get("severity", "unknown").lower()
+                    
+                    # Get interacting drugs info
+                    drug1 = pair.get("interactionConcept", [{}])[0].get("minConceptItem", {}).get("name", "Drug 1")
+                    drug2 = pair.get("interactionConcept", [{}])[1].get("minConceptItem", {}).get("name", "Drug 2") if len(pair.get("interactionConcept", [])) > 1 else "Drug 2"
+                    
+                    # Filter by severity if needed
+                    if severity in ["high", "contraindicated"]:
+                        interactions.append(f"⚠️ {severity.upper()}: {drug1} + {drug2}\n   {desc}")
+                    else:
+                        # Still report other severities for transparency
+                        interactions.append(f"• {severity.upper()}: {drug1} + {drug2}\n   {desc}")
 
         if not interactions:
-            return "No high-severity drug interactions found."
+            return "No significant drug interactions found."
 
-        return "\n".join(interactions)
+        return "\n\n".join(interactions[:10])  # Limit to first 10 to avoid overflow
 
+    except requests.exceptions.RequestException as e:
+        return f"Network error while checking drug interactions: {e}"
+    except KeyError as e:
+        return f"Error parsing interaction data (API response structure may have changed): {e}"
     except Exception as e:
         return f"Error while checking drug interactions: {e}"
 

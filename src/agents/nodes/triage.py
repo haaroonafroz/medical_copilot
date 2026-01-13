@@ -62,9 +62,20 @@ def triage_node(state: AgentState):
         patient_id = None
         triage_msg = SystemMessage(content="Error during triage analysis.")
 
-    # Return updates to the state
+     # Logic to handle Patient ID switching
+    current_patient_id = state.get("patient_id")
+    new_patient_id = patient_id if patient_id else current_patient_id
+    
+    # If the ID changed, we must clear the old data to force a re-fetch
+    # If ID is the same, keep the data (so we can skip fetch)
+    if patient_id and patient_id != current_patient_id:
+        patient_data = None 
+    else:
+        patient_data = state.get("patient_data")
+
     return {
-        "patient_id": patient_id if patient_id else state.get('patient_id'),
+        "patient_id": new_patient_id,
+        "patient_data": patient_data,
         "triage_intent": intent,
         "messages": [triage_msg] 
     }

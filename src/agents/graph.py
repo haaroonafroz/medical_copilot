@@ -6,6 +6,7 @@ from agents.nodes.retrieval import retrieval_node
 from agents.nodes.reasoning import reasoning_node
 from agents.nodes.tool_executor import tool_node
 from agents.nodes.grader import grader_node
+from langgraph.checkpoint.memory import MemorySaver
 
 def build_graph():
     """
@@ -24,10 +25,18 @@ def build_graph():
     # 2. Add Edges (Control Flow)
     workflow.set_entry_point("triage")
 
-    # Conditional logic: If we have a patient ID, fetch data. Else, stop and ask.
+    # Conditional logic: If we have a patient ID, fetch data. Else, if we have data in state, skip fetch. Else, stop and ask.
     def check_patient_id(state: AgentState):
-        if state.get("patient_id"):
+        patient_id = state.get("patient_id")
+        patient_data = state.get("patient_data")
+        
+        if patient_data:
+            print("--- Data already in state, skipping fetch ---")
+            return "retrieve_knowledge" # Optimization: Skip fetch_data
+            
+        if patient_id:
             return "fetch_data"
+            
         return END
 
     workflow.add_conditional_edges(
@@ -35,6 +44,7 @@ def build_graph():
         check_patient_id,
         {
             "fetch_data": "fetch_data",
+            "retrieve_knowledge": "retrieve_knowledge",
             END: END
         }
     )
@@ -78,8 +88,10 @@ def build_graph():
 
     workflow.add_edge("tools", "reason")
 
+    # Initialiaze checkpointer
+    memory = MemorySaver()
     # 3. Compile
-    return workflow.compile()
+    return workflow.compile(checkpointer=memory)
 
 # Global instance
 agent_graph = build_graph()

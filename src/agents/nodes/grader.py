@@ -41,9 +41,11 @@ def grader_node(state: AgentState):
     {context}
     
     TASK:
-    Determine if the retrieved knowledge is sufficient to answer the user's intent.
+    Determine if the retrieved knowledge is sufficient to answer the user's intent satisfactorily.
+    Label the relevance as "RELEVANT" or "IRRELEVANT".
     Example: If the docs talk about "Hypertension treatment" and the user asked about "Side effects", and side effects are mentioned, it is RELEVANT.
     If the docs are completely unrelated (e.g. Diabetes docs for a COPD question), it is IRRELEVANT.
+    Form a feedback (1 line maximum) to guide the next search.
     Return the relevance status and feedback in the following JSON format:
     {{
         "is_relevant": <is_relevant>,
