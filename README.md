@@ -1,149 +1,69 @@
-# Medical Co-Pilot: Agentic RAG for Clinical Decision Support
+# Medical Co-Pilot: computer-use handoff PoC
 
-**An autonomous AI agent designed to assist healthcare providers by synthesizing patient-specific data with the latest medical research.**
+This project began as an [agentic RAG clinical copilot](src/agents/graph.py) using FHIR patient data, medical guideline retrieval, and tool calls. The current demo focuses on a separate **computer-use agent (CUA)**: it transfers a clinician-approved discharge sheet into a mock hospital system using a real browser. All patient records in this workflow are synthetic.
 
----
+**Status:** This is a proof of concept, not a finished clinical product. The target is a local mock HIS, and final clinical sign-off remains with a person.
 
-##  1. The Real-World Problem: Clinical Burnout & Diagnostic Errors
+## Workflow
 
-In modern healthcare, doctors are overwhelmed by data. They must synthesize:
-1.  **Electronic Health Records (EHR):** Scattered labs, notes, and medication lists.
-2.  **Medical Literature:** Constantly changing clinical guidelines (e.g., Hypertension management).
+![CUA workflow: synthetic FHIR record, clinician review, AI Operator, mock hospital form, verified draft, human guidance, and observability traces](docs/images/cua-workflow.png)
 
-This cognitive load leads to burnout and errors. The **Medical Co-Pilot** is not just a chatbot; it is an **Agentic System** that acts as a second pair of eyes. It uses an **Agentic RAG architecture** designed for accurate tool calling and strictly guideline-based advisory for cross-examining patients and flagging abnormalities. It doesn't just "chat"—it **thinks**, retrieves evidence, verifies patient history, and proposes a treatment plan for human review.
+The diagram shows the two human checkpoints: a clinician must approve the discharge sheet before browser entry, and the operator can pause for guidance when a form destination is unclear.
 
----
+- **Prepare:** Deterministic mapping turns FHIR resources into a discharge sheet. Every proposed field links back to its source record; missing or conflicting data blocks approval until a clinician resolves it.
+- **Operate:** `gpt-6-luna` receives only the approved field values and source references, plus a fresh **DOM summary and screenshot** of the mock HIS. It chooses one browser action per model call; Playwright performs the mouse and keyboard actions. The model cannot write directly to the HIS data store.
+- **Check:** The app blocks Save draft until all fields equal the approved values. After saving, it reloads the form and verifies **11/11 persisted fields**. Uncertainty can pause the browser for human guidance.
 
-##  2. AI Architecture: Reasoning-First Design
+![Evidence-linked synthetic discharge sheet before clinician approval](docs/images/clinical-review.png)
 
-This project moves beyond simple RAG (Retrieval-Augmented Generation) to **Agentic RAG**. It uses a graph-based orchestration engine to model the clinical decision-making process.
+*The sheet exposes the FHIR source for each field. The clinician adds a note and approves the exact packet sent to the operator.*
 
-### The Agentic Flow (State Machine)
-The agent is built on **LangGraph**, operating as a state machine with distinct cognitive steps (nodes):
+## CUA scenarios
 
-1.  **Triage Node:**
-    *   **Goal:** Understands the user's intent and extracts the unique Patient ID using structured output (Pydantic).
-    *   *AI Logic:* "Is the user asking for a review? Which patient is this about?"
+Choose a synthetic patient and a **Mock HIS challenge** before **Prepare handoff**. Then add a clinician note, **Save edits**, **Approve for handoff**, and **Run AI Operator**.
 
-2.  **Patient Data Node (FHIR Tooling):**
-    *   **Goal:** Connects to the **FHIR Server** (HAPI FHIR) via **LangChain Tools**.
-    *   *AI Logic:* "I need the latest labs (BP, Lipid Panel), active conditions, and current medications for Patient X."
-    *   *Tech:* Uses standardized tool calling to fetch real-time structured clinical data.
+| Form challenge | What it demonstrates |
+| --- | --- |
+| **Standard form** | Clearly labeled fields on one page. Compare the model with **Run scripted baseline**, which is available only here. |
+| **Tabbed form** | The operator navigates between patient/stay and care/notes tabs as the visible DOM changes. |
+| **Visual label challenge** | The follow-up field has a visible caption but no accessible label. The operator uses screenshot coordinates, then the mouse and keyboard. |
+| **Ambiguous destination** | Two follow-up routes look plausible. The operator pauses; guide it to **Route B**, then select **Resume operator**. |
+| **Transient save error** | The first save returns a synthetic error. The operator can retry or request guidance, with at most two save attempts. |
 
-3.  **Knowledge Retrieval Node (Semantic Memory):**
-    *   **Goal:** Searches the **Vector Database (Qdrant)** for relevant medical guidelines.
-    *   *AI Logic:* "The patient has Hypertension. I need the 2025 JNC 8 or ACC/AHA guidelines for Stage 1 Hypertension treatment."
-    *   *Tech:* Uses OpenAI Embeddings and Hybrid Search with metadata filtering.
+The patient choices test a different part of the workflow: **Complete discharge record** needs only the clinician note; **Missing follow-up plan** requires a clinician to supply a plan; **Conflicting medication entries** require a clinician to resolve the competing source values before approval.
 
-4.  **Grader Node (Self-Correction Loop):**
-    *   **Goal:** Evaluates if the retrieved documents actually answer the user's query.
-    *   *AI Logic:* "Do these chunks talk about side effects? No? Refine search query and try again (up to 3 times)."
+![Verified visual-label challenge in the operator browser and mock HIS](docs/images/visual-operator-verified.png)
 
-5.  **Reasoning Node (The "Brain"):**
-    *   **Goal:** Synthesizes the *Patient Data* + *Medical Evidence* to form a recommendation.
-    *   Can proactively use **Clinical Tools** before answering:
-        *   **Risk Calculator:** Computes ASCVD 10-year risk for Statin/BP therapy decisions.
-        *   **Interaction Checker:** Checks NIH RxNorm for dangerous drug-drug interactions.
-    *   *AI Logic:* "Patient is on Lisinopril but BP is still 150/95. Guidelines suggest adding a Thiazide. Checking interaction between Lisinopril and Hydrochlorothiazide... Safe. Recommending addition."
+*Visual-label run: the operator uses the screenshot for the unlabeled follow-up field; the saved draft passes the 11/11 reload check.*
 
-6.  **Tool Executor Node (ReAct Loop):**
-    *   **Goal:** Executes the deterministic tools requested by the Reasoning Node and loops the result back for final synthesis.
+![Operator paused at an ambiguous follow-up destination](docs/images/human-pause.png)
 
----
+*Ambiguous-destination run: the browser stays open while a person chooses the correct route. Guidance is returned to the model before it continues.*
 
-##  3. Technical Stack
+## Phoenix observability
 
-*   **Orchestration:** `LangGraph` (Cyclic, stateful workflows).
-*   **LLM:** `OpenAI GPT-4o-mini` (Clinical reasoning).
-*   **Data Standard:** `HL7 FHIR` (via `fhir.resources` & HAPI FHIR Server).
-*   **Vector Database:** `Qdrant` (Knowledge retrieval).
-*   **Tooling:** `Langchain` tools with `@tool` decorator.
-*   **Validation:** `Pydantic V2` (Strict schema validation).
-*   **Infrastructure:** `Docker` (Containerized FHIR & Vector DB).
-*   **Frontend:** `Streamlit` (Interactive Dashboard).
+[Arize Phoenix](http://127.0.0.1:6006/) groups each workflow under the **session ID shown in the demo**. Open the `medical-copilot` project, find that ID in **Sessions**, and expand its **Traces**. The child spans show preparation and approval, `cua.model_decision` LLM calls with inputs, selected tool and short reason, `cua.browser_action` tool calls, save errors, token use, and verification. Generic HTTP root spans can show blank input/output; inspect the child spans for the model exchange. Model content capture here is restricted to the synthetic handoff workflow.
 
----
+![Phoenix session trace with a CUA model decision and browser action spans](docs/images/phoenix-model-decision.png)
 
-##  4. Getting Started
+*Phoenix trace from the visual-label run, linked to the same ID displayed in the app.*
 
-Follow these instructions to spin up the local environment.
+## Run locally
 
-### Prerequisites
-*   **Docker Desktop** (running)
-*   **Python 3.10+**
+From the repository root, use Python 3.12, Docker, Playwright Chromium, and a valid `OPENAI_API_KEY` in the project `.env` file or shell (see `env.example`). The AI Operator makes paid model calls.
 
-### Installation
+```bash
+python3.12 -m venv .venv-handoff
+source .venv-handoff/bin/activate
+pip install -r requirements-handoff.txt
+python -m playwright install chromium
+docker compose up -d hapi-fhir phoenix
+python scripts/seed_handoff.py
+HANDOFF_FHIR_SOURCE=live uvicorn src.handoff.app:app --host 127.0.0.1 --port 8768
+```
 
-1.  **Clone & Setup Environment**
-    ```bash
-    git clone <repo_url>
-    cd medical_copilot
-    python -m venv .venv
-    source .venv/bin/activate  # Windows: .venv\Scripts\activate
-    pip install -r requirements.txt
-    ```
+Open the [demo](http://127.0.0.1:8768/) and [Phoenix](http://127.0.0.1:6006/). If FHIR is still starting, retry the seed command. For an offline FHIR fixture, start with `HANDOFF_FHIR_SOURCE=fixture`. See [the demo guide](docs/HANDOFF_DEMO.md) for a fuller walkthrough and checks.
 
-2.  **Configure Environment Variables**
-    *   Copy the example file:
-        ```bash
-        cp env.example .env
-        ```
-    *   Edit `.env` and add your `OPENAI_API_KEY`.
-    *   *Note:* Ensure `FHIR_BASE_URL=http://localhost:8080/fhir` (HTTP, not HTTPS).
+## Scope and next steps
 
-3.  **Start Infrastructure (Docker)**
-    This spins up the HAPI FHIR Server (Patient Data) and Qdrant (Vector DB).
-    ```bash
-    docker-compose up -d
-    ```
-    *Wait ~30 seconds for the containers to initialize.*
-
-### Data Seeding (The "Brain" Transplant)
-
-Before the agent can reason, it needs knowledge and patients.
-
-1.  **Ingest Medical Guidelines (Knowledge)**
-    Loads a sample "Hypertension Management 2025" guideline into Qdrant.
-    ```bash
-    python scripts/ingest_docs.py
-    ```
-
-2.  **Seed Synthetic Patient (Context)**
-    Loads a bulk dataset of 100+ synthetic patients (Synthea) into the local FHIR server.
-    ```bash
-    python scripts/seed_fhir.py
-    ```
-
----
-
-##  5. Usage
-
-Interact with the agent via the UI.
-
-1.  **Run the Streamlit App:**
-    ```bash
-    streamlit run src/app.py
-    ```
-
-2.  **Test Case:**
-    *   Select a patient from the sidebar dropdown (auto-loaded from FHIR server).
-    *   Click **"Load Patient Context"**.
-    *   Watch the "Thinking" expander to see the agent Triage -> Fetch -> Retrieve -> Grade -> Reason.
-
-3.  **Expected Output:**
-    *   **Triage:** Identifies the ID.
-    *   **Fetch:** Retrieves FHIR bundle.
-    *   **Retrieve:** Finds relevant guidelines.
-    *   **Tool Use:** Might calculate cardiovascular risk or check drug interactions.
-    *   **Reason:** Outputs a structured Assessment & Plan.
-
----
-
-##  6. Future Roadmap
-
-*   **Observability:** Integrate **Arize Phoenix** to trace the "thought process" of the agent visually.
-*   **Deterministic Safety:** Implement a `CDSRulesEngine` to hard-validate recommendations against contraindications (e.g., Allergy checks).
-
-## Synthetic discharge handoff and computer-use demo
-
-A separate, reviewable FHIR-to-mock-HIS workflow is available in [`docs/HANDOFF_DEMO.md`](docs/HANDOFF_DEMO.md). It includes repeatable patient scenarios, source-level evidence, clinician approval, browser-based draft entry, persistence verification, and Phoenix traces. The main operator uses GPT-6 Luna with DOM and screenshot observations, mouse and keyboard actions, human pauses, and Phoenix LLM traces; it needs an OpenAI API key. A scripted baseline remains available for comparison.
+This PoC runs against an invented browser form, uses in-memory run state, and is **not** connected to a real hospital system or approved for real patient data. Work toward real-world reliability includes broader form and failure evaluations, more robust recovery across changing interfaces, durable resumable runs, and production-grade access and privacy controls.
