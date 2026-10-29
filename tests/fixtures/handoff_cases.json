@@ -1,0 +1,5 @@
+[
+  {"scenario":"complete","expected_missing":["clinical_note"],"expected_conflicts":[]},
+  {"scenario":"missing_followup","expected_missing":["follow_up","clinical_note"],"expected_conflicts":[]},
+  {"scenario":"conflicting_medication","expected_missing":["clinical_note"],"expected_conflicts":["medications"]}
+]

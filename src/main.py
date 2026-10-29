@@ -31,12 +31,17 @@ def main():
             "patient_id": None
         }
         
-        print("\n--- Agent Thinking ---")
+        print("\n--- Thinking ---")
         try:
             # Stream the graph execution
-            for event in agent_graph.stream(initial_state):
-                for key, value in event.items():
-                    print(f"Finished Node: {key}")
+            final_state = None
+            
+            for event in agent_graph.stream(initial_state, stream_mode="values"):
+                final_state = event
+                if "messages" in event:
+                    print(f"Step complete. Messages: {len(event['messages'])}")
+            if final_state is None:
+                raise RuntimeError("Graph did not produce a final state.")
 
             final_state = agent_graph.invoke(initial_state)
             

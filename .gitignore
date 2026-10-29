@@ -1,7 +1,9 @@
 # Environment
 .env
-venv/
+.venv/
 __pycache__/
+.pytest_cache/
+.cursor/
 *.pyc
 
 # Data
@@ -19,3 +21,4 @@ fhir_data/
 # specific files
 Dev_requirement_Doc.md
 medical-collection_info.json
+requirements-handoff.txt

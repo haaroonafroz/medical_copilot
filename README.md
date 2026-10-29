@@ -143,3 +143,7 @@ Interact with the agent via the UI.
 
 *   **Observability:** Integrate **Arize Phoenix** to trace the "thought process" of the agent visually.
 *   **Deterministic Safety:** Implement a `CDSRulesEngine` to hard-validate recommendations against contraindications (e.g., Allergy checks).
+
+## Synthetic discharge handoff and computer-use demo
+
+A separate, reviewable FHIR-to-mock-HIS workflow is available in [`docs/HANDOFF_DEMO.md`](docs/HANDOFF_DEMO.md). It includes repeatable patient scenarios, source-level evidence, clinician approval, browser-based draft entry, persistence verification, and Phoenix traces. The main operator uses GPT-6 Luna with DOM and screenshot observations, mouse and keyboard actions, human pauses, and Phoenix LLM traces; it needs an OpenAI API key. A scripted baseline remains available for comparison.

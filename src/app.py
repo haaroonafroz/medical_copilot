@@ -12,6 +12,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Load Env
 load_dotenv()
+from observability import setup_observability
+setup_observability()
 
 from agents.graph import agent_graph
 

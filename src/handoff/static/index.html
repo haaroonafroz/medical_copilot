@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clinical Handoff Lab</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <div class="brand"><span class="brand-mark">✚</span><div><strong>Clinical Handoff</strong><small>Operator workflow lab</small></div></div>
+      <div class="rail-section">WORKFLOW</div>
+      <div class="step active" data-step="1"><span>01</span><div>Patient context<small>FHIR source record</small></div></div>
+      <div class="step" data-step="2"><span>02</span><div>Clinical review<small>Discharge sheet</small></div></div>
+      <div class="step" data-step="3"><span>03</span><div>System handoff<small>Mock HIS + verification</small></div></div>
+      <div class="rail-bottom"><span class="live-dot"></span><span id="system-status">Checking services…</span><small>Local synthetic data demo</small></div>
+    </aside>
+    <main class="main">
+      <header class="topbar"><div><span class="eyebrow">DISCHARGE WORKFLOW</span><h1>From patient record to verified entry</h1><p>Review the sources, approve the draft, then watch GPT-6 Luna navigate the mock HIS with DOM and screenshot observations.</p></div><div class="top-badge">SYNTHETIC DATA</div></header>
+      <div id="notice" role="status" aria-live="polite"></div>
+      <section class="workspace">
+        <div class="primary">
+          <section class="card patient-card"><div class="section-head"><div><span class="eyebrow">01 · SOURCE</span><h2>Patient context</h2></div><span class="pill" id="source-mode">FHIR fixture</span></div>
+            <div class="patient-select"><label for="patient-select">Synthetic patient scenario</label><div class="select-row"><select id="patient-select"></select><button id="prepare-btn" class="btn dark">Prepare handoff →</button></div></div>
+            <div class="layout-select"><label for="layout-select">Mock HIS challenge</label><select id="layout-select"><option value="standard">Standard form</option><option value="tabs">Tabbed form</option><option value="visual">Visual label challenge</option><option value="ambiguous">Ambiguous destination</option><option value="flaky_save">Transient save error</option></select></div>
+            <p class="subtle">The patient and target layout stay fixed during a run so results can be reproduced.</p>
+            <div id="patient-summary" class="patient-summary empty">Choose a patient to preview the source record.</div>
+          </section>
+          <section class="card sheet-card" id="sheet-card" hidden><div class="section-head"><div><span class="eyebrow">02 · CLINICIAN REVIEW</span><h2>Discharge sheet</h2></div><span id="draft-state" class="pill amber">Needs review</span></div>
+            <p class="subtle">Each field shows the FHIR resources used to propose it. Missing or conflicting entries must be resolved before approval.</p>
+            <div id="sheet-fields" class="sheet-fields"></div>
+            <div class="sheet-actions"><button id="save-btn" class="btn light">Save edits</button><button id="approve-btn" class="btn dark">Approve for handoff</button><button id="download-btn" class="btn ghost">Download sheet</button></div>
+          </section>
+          <section class="card target-card" id="target-card" hidden><div class="section-head"><div><span class="eyebrow">03 · COMPUTER USE</span><h2>Mock hospital system</h2></div><span id="target-state" class="pill">Awaiting approval</span></div>
+            <p class="subtle">The AI operator controls a separate browser using the approved values. Watch its latest screen below, and respond if it pauses. It saves a draft only after all entered values match the approval.</p>
+            <div class="target-actions"><button id="execute-btn" class="btn dark">Run AI Operator →</button><button id="execute-scripted-btn" class="btn ghost">Run scripted baseline</button><button id="cancel-btn" class="btn ghost" hidden>Cancel run</button><a id="open-target" class="btn ghost" target="_blank" rel="noopener">Inspect form ↗</a><a id="view-screenshot" class="btn ghost" target="_blank" rel="noopener" hidden>View CUA screenshot ↗</a></div>
+            <div class="operator-live"><div class="operator-live-head"><strong>Operator browser</strong><span id="operator-status" class="pill">Idle</span></div><p id="operator-help" class="subtle">The latest browser screenshot appears here when the run starts.</p><img id="operator-frame" alt="Latest browser view from the AI operator" hidden><div id="human-review" class="human-review" hidden><strong>Human review needed</strong><p id="pause-reason"></p><label for="human-guidance">Guidance for the operator</label><textarea id="human-guidance" rows="2" placeholder="Explain which visible field to use, or cancel the run."></textarea><button id="resume-btn" class="btn dark">Resume operator</button></div></div>
+            <p class="preview-label">Saved mock HIS form</p><div class="target-frame-wrap"><iframe id="target-frame" title="Mock hospital system"></iframe></div>
+            <div id="verification" class="verification" hidden></div>
+          </section>
+        </div>
+        <aside class="inspector">
+          <section class="card inspector-card"><div class="section-head"><div><span class="eyebrow">EVIDENCE</span><h2>Source inspector</h2></div></div><p class="subtle">Select a source chip or any fetched resource to inspect its original FHIR record.</p><div id="resource-list" class="resource-list"></div><pre id="source-json">No source selected.</pre></section>
+          <section class="card inspector-card"><div class="section-head"><div><span class="eyebrow">OBSERVABILITY</span><h2>Run events</h2></div><span id="event-count" class="count">0</span></div><div class="session-identity"><span>Phoenix session ID</span><code id="session-id">Prepare a handoff</code><button id="copy-session" type="button" disabled>Copy</button></div><div id="event-list" class="event-list"><div class="empty-events">Events appear as the workflow runs.</div></div><div id="trace-note" class="trace-note">Checking Phoenix tracing…</div><a id="phoenix-link" class="phoenix-link" target="_blank" rel="noopener">Open Phoenix ↗</a></section>
+        </aside>
+      </section>
+      <footer>Clinical Handoff Lab · Local demonstration with invented patient records · Final sign-off is outside the automated workflow</footer>
+    </main>
+  </div>
+</body>
+</html>
